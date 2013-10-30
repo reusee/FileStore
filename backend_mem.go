@@ -17,42 +17,22 @@ func NewMembin() *Membin {
 	}
 }
 
-type membuffer struct {
-	m   map[string][]byte
-	key string
-	buf *bytes.Buffer
-}
-
-func (self *membuffer) Write(buf []byte) (int, error) {
-	return self.buf.Write(buf)
-}
-
-func (self *membuffer) Close() error {
-	self.m[self.key] = self.buf.Bytes()
-	return nil
-}
-
-func (self *Membin) NewWriter(length int, hash []byte) (io.WriteCloser, error) {
-	return &membuffer{
-		m:   self.store,
-		key: fmt.Sprintf("%d-%x", length, hash),
-		buf: new(bytes.Buffer),
+func (self *Membin) NewWriter(length int, hash []byte) (io.Writer, Callback, error) {
+	buf := new(bytes.Buffer)
+	return buf, func(err error) error {
+		if err != nil {
+			return err
+		}
+		self.store[fmt.Sprintf("%d-%x", length, hash)] = buf.Bytes()
+		return nil
 	}, nil
 }
 
-type closingReader struct {
-	*bytes.Reader
-}
-
-func (self closingReader) Close() error {
-	return nil
-}
-
-func (self *Membin) NewReader(length int, hash []byte) (io.ReadCloser, error) {
+func (self *Membin) NewReader(length int, hash []byte) (io.Reader, Callback, error) {
 	if v, ok := self.store[fmt.Sprintf("%d-%x", length, hash)]; ok {
-		return closingReader{bytes.NewReader(v)}, nil
+		return bytes.NewReader(v), nil, nil
 	}
-	return nil, errors.New("not exists")
+	return nil, nil, errors.New("not exists")
 }
 
 func (self *Membin) Exists(length int, hash []byte) (bool, error) {

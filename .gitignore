@@ -1,0 +1,4 @@
+tools/
+*_secret.go
+spec
+todo

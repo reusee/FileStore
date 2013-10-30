@@ -18,16 +18,23 @@ func NewBin(backend Backend) *Bin {
 	}
 }
 
+type Callback func(error) error
+
 type Backend interface {
-	NewWriter(length int, hash []byte) (io.WriteCloser, error)
-	NewReader(length int, hash []byte) (io.ReadCloser, error)
+	NewWriter(length int, hash []byte) (io.Writer, Callback, error)
+	NewReader(length int, hash []byte) (io.Reader, Callback, error)
 	Exists(length int, hash []byte) (bool, error)
 }
 
-func (self *Bin) Save(length int, hash []byte, reader io.ReadCloser) error {
-	writer, err := self.backend.NewWriter(length, hash)
+func (self *Bin) Save(length int, hash []byte, reader io.Reader) (err error) {
+	writer, cb, err := self.backend.NewWriter(length, hash)
 	if err != nil {
 		return errors.New(fmt.Sprintf("backend error %v", err))
+	}
+	if cb != nil {
+		defer func() {
+			err = cb(err)
+		}()
 	}
 	n, h, err := pipe(reader, writer)
 	if err != nil {
@@ -39,24 +46,30 @@ func (self *Bin) Save(length int, hash []byte, reader io.ReadCloser) error {
 	return nil
 }
 
-func (self *Bin) Fetch(length int, hash []byte, writer io.WriteCloser) error {
-	reader, err := self.backend.NewReader(length, hash)
+func (self *Bin) Fetch(length int, hash []byte, writer io.Writer) (err error) {
+	reader, cb, err := self.backend.NewReader(length, hash)
 	if err != nil {
 		return errors.New(fmt.Sprintf("backend error %v", err))
+	}
+	if cb != nil {
+		defer func() {
+			err = cb(err)
+		}()
 	}
 	n, h, err := pipe(reader, writer)
 	if err != nil {
 		return err
 	}
-	if n != length || !bytes.Equal(h, hash) {
-		return errors.New(fmt.Sprintf("data not match %d-%s", length, hash))
+	if n != length {
+		return errors.New(fmt.Sprintf("fetched data length not match, expected %d, get %d", length, n))
+	}
+	if !bytes.Equal(h, hash) {
+		return errors.New(fmt.Sprintf("fetched data hash not match, expected %x, get %x", hash, h))
 	}
 	return nil
 }
 
-func pipe(reader io.ReadCloser, writer io.WriteCloser) (int, []byte, error) {
-	defer reader.Close()
-	defer writer.Close()
+func pipe(reader io.Reader, writer io.Writer) (int, []byte, error) {
 	readN := 0
 	buf := make([]byte, 1*1024*1024)
 	hasher := sha512.New()
@@ -83,28 +96,4 @@ func pipe(reader io.ReadCloser, writer io.WriteCloser) (int, []byte, error) {
 
 func (self *Bin) Exists(length int, hash []byte) (bool, error) {
 	return self.backend.Exists(length, hash)
-}
-
-type wrapReader struct {
-	io.Reader
-}
-
-func (self *wrapReader) Close() error {
-	return nil
-}
-
-func WrapReader(r io.Reader) *wrapReader {
-	return &wrapReader{r}
-}
-
-type wrapWriter struct {
-	io.Writer
-}
-
-func (self *wrapWriter) Close() error {
-	return nil
-}
-
-func WrapWriter(r io.Writer) *wrapWriter {
-	return &wrapWriter{r}
 }
