@@ -1,14 +1,19 @@
 package snapshot
 
 import (
+	"compress/gzip"
 	"crypto/sha512"
+	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -60,7 +65,7 @@ func New(path string) (*SnapshotSet, error) {
 	}, nil
 }
 
-func (self *SnapshotSet) Snapshot() error {
+func (self *SnapshotSet) Snapshot(cacheFile string, readCache bool, strategy int) error {
 	var lastSnapshotFiles map[string]*File
 	if len(self.Snapshots) > 0 {
 		lastSnapshotFiles = self.Snapshots[len(self.Snapshots)-1].Files
@@ -69,6 +74,17 @@ func (self *SnapshotSet) Snapshot() error {
 		Time:  time.Now(),
 		Files: make(map[string]*File),
 	}
+	if readCache {
+		f, err := os.Open(cacheFile)
+		if err == nil {
+			defer f.Close()
+			err = gob.NewDecoder(f).Decode(&snapshot.Files)
+			if err != nil {
+				return errors.New(fmt.Sprintf("read cache error: %v", err))
+			}
+			fmt.Printf("read %d files from cache\n", len(snapshot.Files))
+		}
+	}
 
 	infos := make([]os.FileInfo, 0)
 	paths := make([]string, 0)
@@ -76,19 +92,78 @@ func (self *SnapshotSet) Snapshot() error {
 	if err != nil {
 		return err
 	}
+	cacheTimer := time.NewTimer(time.Second * 10)
+
+	ignorePatterns := make([]*regexp.Regexp, 0)
+	ignoreFilePath := filepath.Join(self.Path, ".fsignore")
+	content, err := ioutil.ReadFile(ignoreFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, pattern := range strings.Split(string(content), "\n") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		pattern = "^" + pattern
+		fmt.Printf("%s\n", pattern)
+		ignorePatterns = append(ignorePatterns, regexp.MustCompilePOSIX(pattern))
+	}
 
 	for i, info := range infos {
-		fmt.Printf("%s\n", paths[i])
+		select {
+		case <-cacheTimer.C: // write to cache
+			fmt.Printf("saving cache\n")
+			t := time.Now()
+			f, err := os.Create(cacheFile + ".new")
+			if err != nil {
+				return errors.New(fmt.Sprintf("cannot create cache file: %v", err))
+			}
+			err = gob.NewEncoder(f).Encode(snapshot.Files)
+			if err != nil {
+				return errors.New(fmt.Sprintf("cannot write to cache file: %v", err))
+			}
+			f.Close()
+			err = os.Rename(cacheFile+".new", cacheFile)
+			if err != nil {
+				return errors.New(fmt.Sprintf("cannot write to cache file: %v", err))
+			}
+			fmt.Printf("cache saved\n")
+			cacheTimer.Reset(time.Now().Sub(t) * 10)
+		default:
+		}
+
+		path := paths[i]
+		relativePath := strings.TrimPrefix(path, self.Path)
+		relativePath = strings.TrimPrefix(relativePath, "/")
+		ignore := false
+		for _, pattern := range ignorePatterns {
+			if pattern.MatchString(relativePath) {
+				fmt.Printf("ignore %s by %v\n", path, pattern)
+				ignore = true
+				break
+			}
+		}
+		if ignore {
+			continue
+		}
+
+		if _, ok := snapshot.Files[path]; readCache && ok {
+			fmt.Printf("skip %s\n", path)
+			continue
+		}
+		fmt.Printf("checking %s\n", path)
+
 		file := &File{
-			Path:    paths[i],
+			Path:    path,
 			Size:    info.Size(),
 			ModTime: info.ModTime(),
 		}
-		strategy := FAST_HASH //TODO read from file
 		err = file.getChunks(lastSnapshotFiles, strategy)
 		if err != nil {
 			return err
 		}
+
 		snapshot.Files[file.Path] = file
 	}
 
@@ -128,6 +203,42 @@ func collectFiles(top string, infos *[]os.FileInfo, paths *[]string) error {
 		}
 	}
 	return nil
+}
+
+func (self *SnapshotSet) Load(path string) error {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	z, err := gzip.NewReader(f)
+	if err != nil {
+		return nil
+	}
+	defer func() {
+		z.Close()
+		f.Close()
+	}()
+	err = gob.NewDecoder(z).Decode(&self.Snapshots)
+	return err
+}
+
+func (self *SnapshotSet) Save(path string) error {
+	f, err := os.OpenFile(path+".new", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	z := gzip.NewWriter(f)
+	err = gob.NewEncoder(z).Encode(self.Snapshots)
+	if err != nil {
+		z.Close()
+		f.Close()
+		return err
+	}
+	z.Close()
+	f.Close()
+	return os.Rename(path+".new", path)
 }
 
 func (self *File) getChunks(lastSnapshotFiles map[string]*File, strategy int) error {
