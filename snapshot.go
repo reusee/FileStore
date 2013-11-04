@@ -43,14 +43,14 @@ func runSnapshot() {
 		log.Fatalf("cannot create snapshot set: %v", err)
 	}
 	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(dataDir, escapedPath+".snapshots")
+	snapshotFilePath := filepath.Join(DATADIR, escapedPath+".snapshots")
 	err = snapshotSet.Load(snapshotFilePath)
 	if err != nil {
 		log.Fatalf("cannot read snapshots from file: %v", err)
 	}
 	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
 
-	cacheFilePath := filepath.Join(dataDir, escapedPath+".cache")
+	cacheFilePath := filepath.Join(DATADIR, escapedPath+".cache")
 	err = snapshotSet.Snapshot(cacheFilePath, readCache, strategy)
 	if err != nil {
 		log.Fatalf("snapshot error: %v", err)

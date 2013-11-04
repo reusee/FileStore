@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-var dataDir string
+var DATADIR string
 var REGISTER *register.Register
 
 func init() {
@@ -17,16 +17,16 @@ func init() {
 	if err != nil {
 		log.Fatalf("cannot get current user: %v", err)
 	}
-	dataDir = filepath.Join(user.HomeDir, ".FileStore")
-	_, err = os.Stat(dataDir)
+	DATADIR = filepath.Join(user.HomeDir, ".FileStore")
+	_, err = os.Stat(DATADIR)
 	if os.IsNotExist(err) {
-		err = os.Mkdir(dataDir, 0755)
+		err = os.Mkdir(DATADIR, 0755)
 		if err != nil {
 			log.Fatalf("cannot create data dir: %v", err)
 		}
 	}
 
-	REGISTER, err = register.NewRegister(filepath.Join(dataDir, "register"))
+	REGISTER, err = register.NewRegister(filepath.Join(DATADIR, "register"))
 	if err != nil {
 		log.Fatalf("open register: %v", err)
 	}
@@ -45,6 +45,8 @@ func main() {
 	case "download":
 	case "setup":
 		runSetup()
+	case "update":
+		runUpdate()
 	default:
 		log.Fatalf("unknown command %s", os.Args[1])
 	}

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 func runUpload() {
@@ -40,7 +41,7 @@ func runUpload() {
 		log.Fatalf("cannot create snapshot set: %v", err)
 	}
 	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(dataDir, escapedPath+".snapshots")
+	snapshotFilePath := filepath.Join(DATADIR, escapedPath+".snapshots")
 	err = snapshotSet.Load(snapshotFilePath)
 	if err != nil {
 		log.Fatalf("cannot read snapshots from file: %v", err)
@@ -61,36 +62,57 @@ func runUpload() {
 		os.Exit(0)
 	}
 	lastSnapshot := snapshotSet.Snapshots[len(snapshotSet.Snapshots)-1]
-	for filePath, file := range lastSnapshot.Files {
-		for _, chunk := range file.Chunks {
-			for _, backend := range backends {
-				exists, err := backend.Exists(int(chunk.Length), chunk.Hash)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if exists {
-					continue
-				}
-				fmt.Printf("uploading %s %d %s\n", filePath, chunk.Offset, chunk.Hash)
-				f, err := os.Open(filePath)
-				if err != nil {
-					log.Fatal(err)
-				}
-				o, err := f.Seek(chunk.Offset, 0)
-				if err != nil || o != chunk.Offset {
-					log.Fatal(err)
-				}
-				buf := make([]byte, chunk.Length)
-				n, err := io.ReadFull(f, buf)
-				if int64(n) != chunk.Length || err != nil {
-					log.Fatal(err)
-				}
-				err = backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
-				if err != nil {
-					log.Fatal(err)
+
+	filePaths := make([]string, 0, len(lastSnapshot.Files))
+	for filePath := range lastSnapshot.Files {
+		filePaths = append(filePaths, filePath)
+	}
+	sort.Strings(filePaths)
+
+	semSize := 4
+	sem := make(chan bool, semSize)
+	for i := 0; i < semSize; i++ {
+		sem <- true
+	}
+
+	for _, filePath := range filePaths {
+		file := lastSnapshot.Files[filePath]
+		<-sem
+		go func(filePath string, file *snapshot.File) {
+			defer func() {
+				sem <- true
+			}()
+			for _, chunk := range file.Chunks {
+				for _, backend := range backends {
+					exists, err := backend.Exists(int(chunk.Length), chunk.Hash)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if exists {
+						fmt.Printf("skip %s %d %s\n", filePath, chunk.Offset, chunk.Hash)
+						return
+					}
+					fmt.Printf("uploading %s %d %s\n", filePath, chunk.Offset, chunk.Hash)
+					f, err := os.Open(filePath)
+					if err != nil {
+						log.Fatal(err)
+					}
+					o, err := f.Seek(chunk.Offset, 0)
+					if err != nil || o != chunk.Offset {
+						log.Fatal(err)
+					}
+					buf := make([]byte, chunk.Length)
+					n, err := io.ReadFull(f, buf)
+					if int64(n) != chunk.Length || err != nil {
+						log.Fatal(err)
+					}
+					err = backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
+					if err != nil {
+						log.Fatal(err)
+					}
 				}
 			}
-		}
+		}(filePath, file)
 	}
 }
 
@@ -105,7 +127,8 @@ func getBaiduBackend() (*hashbin.Bin, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := baidu.New(dir, &token)
+	keyCacheFilePath := filepath.Join(DATADIR, "baidu.keys")
+	b, err := baidu.New(dir, &token, keyCacheFilePath)
 	if err != nil {
 		return nil, err
 	}
