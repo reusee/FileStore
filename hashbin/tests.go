@@ -3,6 +3,7 @@ package hashbin
 import (
 	"bytes"
 	"crypto/sha512"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func RunTest(bin *Bin, t *testing.T) {
 
 	// false hash
 	data = genRandBytes(1024 * 1024 * 4)
-	hash = []byte{1, 2, 3}
+	hash = "123"
 	err = bin.Save(len(data), hash, bytes.NewReader(data))
 	if err == nil {
 		t.Fatalf("saved wrong hash data")
@@ -54,7 +55,7 @@ func RunTest(bin *Bin, t *testing.T) {
 	}
 
 	// fetch non exists
-	err = bin.Fetch(1, genRandBytes(128), new(bytes.Buffer))
+	err = bin.Fetch(1, fmt.Sprintf("%x", genRandBytes(128)), new(bytes.Buffer))
 	if err == nil {
 		t.Fatalf("fetched non exists data")
 	}
@@ -69,8 +70,8 @@ func genRandBytes(max int) []byte {
 	return data
 }
 
-func hashBytes(bs []byte) []byte {
+func hashBytes(bs []byte) string {
 	hasher := sha512.New()
 	hasher.Write(bs)
-	return hasher.Sum(nil)
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }

@@ -1,7 +1,6 @@
 package hashbin
 
 import (
-	"bytes"
 	"crypto/sha512"
 	"errors"
 	"fmt"
@@ -21,12 +20,12 @@ func New(backend Backend) *Bin {
 type Callback func(error) error
 
 type Backend interface {
-	NewWriter(length int, hash []byte) (io.Writer, Callback, error)
-	NewReader(length int, hash []byte) (io.Reader, Callback, error)
-	Exists(length int, hash []byte) (bool, error)
+	NewWriter(length int, hash string) (io.Writer, Callback, error)
+	NewReader(length int, hash string) (io.Reader, Callback, error)
+	Exists(length int, hash string) (bool, error)
 }
 
-func (self *Bin) Save(length int, hash []byte, reader io.Reader) (err error) {
+func (self *Bin) Save(length int, hash string, reader io.Reader) (err error) {
 	writer, cb, err := self.backend.NewWriter(length, hash)
 	if err != nil {
 		return errors.New(fmt.Sprintf("backend error %v", err))
@@ -40,13 +39,13 @@ func (self *Bin) Save(length int, hash []byte, reader io.Reader) (err error) {
 	if err != nil {
 		return err
 	}
-	if n != length || !bytes.Equal(h, hash) {
+	if n != length || !(h == hash) {
 		return errors.New(fmt.Sprintf("data not match %d-%s", length, hash))
 	}
 	return nil
 }
 
-func (self *Bin) Fetch(length int, hash []byte, writer io.Writer) (err error) {
+func (self *Bin) Fetch(length int, hash string, writer io.Writer) (err error) {
 	reader, cb, err := self.backend.NewReader(length, hash)
 	if err != nil {
 		return errors.New(fmt.Sprintf("backend error %v", err))
@@ -63,13 +62,13 @@ func (self *Bin) Fetch(length int, hash []byte, writer io.Writer) (err error) {
 	if n != length {
 		return errors.New(fmt.Sprintf("fetched data length not match, expected %d, get %d", length, n))
 	}
-	if !bytes.Equal(h, hash) {
+	if !(h == hash) {
 		return errors.New(fmt.Sprintf("fetched data hash not match, expected %x, get %x", hash, h))
 	}
 	return nil
 }
 
-func pipe(reader io.Reader, writer io.Writer) (int, []byte, error) {
+func pipe(reader io.Reader, writer io.Writer) (int, string, error) {
 	readN := 0
 	buf := make([]byte, 1*1024*1024)
 	hasher := sha512.New()
@@ -82,18 +81,18 @@ func pipe(reader io.Reader, writer io.Writer) (int, []byte, error) {
 			hasher.Write(buf[:n])
 			_, err = writer.Write(buf[:n])
 			if err != nil {
-				return readN, hasher.Sum(nil), errors.New(fmt.Sprintf("writer write error %v", err))
+				return readN, fmt.Sprintf("%x", hasher.Sum(nil)), errors.New(fmt.Sprintf("writer write error %v", err))
 			}
 		}
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return readN, hasher.Sum(nil), errors.New(fmt.Sprintf("reader read error %v", err))
+			return readN, fmt.Sprintf("%x", hasher.Sum(nil)), errors.New(fmt.Sprintf("reader read error %v", err))
 		}
 	}
-	return readN, hasher.Sum(nil), nil
+	return readN, fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
-func (self *Bin) Exists(length int, hash []byte) (bool, error) {
+func (self *Bin) Exists(length int, hash string) (bool, error) {
 	return self.backend.Exists(length, hash)
 }

@@ -17,26 +17,26 @@ func NewMembin() *Membin {
 	}
 }
 
-func (self *Membin) NewWriter(length int, hash []byte) (io.Writer, Callback, error) {
+func (self *Membin) NewWriter(length int, hash string) (io.Writer, Callback, error) {
 	buf := new(bytes.Buffer)
 	return buf, func(err error) error {
 		if err != nil {
 			return err
 		}
-		self.store[fmt.Sprintf("%d-%x", length, hash)] = buf.Bytes()
+		self.store[fmt.Sprintf("%d-%s", length, hash)] = buf.Bytes()
 		return nil
 	}, nil
 }
 
-func (self *Membin) NewReader(length int, hash []byte) (io.Reader, Callback, error) {
-	if v, ok := self.store[fmt.Sprintf("%d-%x", length, hash)]; ok {
+func (self *Membin) NewReader(length int, hash string) (io.Reader, Callback, error) {
+	if v, ok := self.store[fmt.Sprintf("%d-%s", length, hash)]; ok {
 		return bytes.NewReader(v), nil, nil
 	}
 	return nil, nil, errors.New("not exists")
 }
 
-func (self *Membin) Exists(length int, hash []byte) (bool, error) {
-	if _, ok := self.store[fmt.Sprintf("%d-%x", length, hash)]; ok {
+func (self *Membin) Exists(length int, hash string) (bool, error) {
+	if _, ok := self.store[fmt.Sprintf("%d-%s", length, hash)]; ok {
 		return true, nil
 	}
 	return false, nil
