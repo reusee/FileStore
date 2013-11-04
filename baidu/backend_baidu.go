@@ -2,6 +2,7 @@ package baidu
 
 import (
 	"../hashbin"
+	"../utils"
 	"bytes"
 	"code.google.com/p/goauth2/oauth"
 	"crypto/md5"
@@ -42,7 +43,7 @@ func New(dir string, token *oauth.Token, keyCacheFilePath string) (*Baidu, error
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Baidu: quota %s, used %s\n", formatSize(quota), formatSize(used))
+	fmt.Printf("Baidu: quota %s, used %s\n", utils.FormatSize(quota), utils.FormatSize(used))
 
 	if keyCacheFilePath != "" {
 		f, err := os.Open(keyCacheFilePath)

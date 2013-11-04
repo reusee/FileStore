@@ -9,6 +9,7 @@ func TestBaiduBackend(t *testing.T) {
 	baidu, err := NewBaiduWithStringToken(
 		BAIDU_DIR,
 		BAIDU_TOKEN,
+		"",
 	)
 	if err != nil {
 		t.Fatal(err)
