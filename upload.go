@@ -102,7 +102,7 @@ func runUpload() {
 					if err != nil || o != chunk.Offset {
 						log.Fatal(err)
 					}
-					buf = buf[0:0]
+					buf = buf[:chunk.Length]
 					n, err := io.ReadFull(f, buf)
 					if int64(n) != chunk.Length || err != nil {
 						log.Fatal(err)
@@ -112,6 +112,7 @@ func runUpload() {
 			}
 		}(filePath)
 	}
+
 }
 
 func getBaiduBackend() (*hashbin.Bin, error) {
