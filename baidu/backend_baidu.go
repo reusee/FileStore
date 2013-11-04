@@ -1,6 +1,7 @@
-package hashbin
+package baidu
 
 import (
+	"../hashbin"
 	"bytes"
 	"code.google.com/p/goauth2/oauth"
 	"crypto/md5"
@@ -126,7 +127,7 @@ func (self *Baidu) upload(path string, data []byte, length int) error {
 	return nil
 }
 
-func (self *Baidu) NewWriter(length int, hash []byte) (io.Writer, Callback, error) {
+func (self *Baidu) NewWriter(length int, hash []byte) (io.Writer, hashbin.Callback, error) {
 	buf := new(bytes.Buffer)
 	return buf, func(err error) error {
 		if err != nil {
@@ -136,7 +137,7 @@ func (self *Baidu) NewWriter(length int, hash []byte) (io.Writer, Callback, erro
 	}, nil
 }
 
-func (self *Baidu) NewReader(length int, hash []byte) (io.Reader, Callback, error) {
+func (self *Baidu) NewReader(length int, hash []byte) (io.Reader, hashbin.Callback, error) {
 	path := neturl.QueryEscape(fmt.Sprintf("/apps/%s/%d-%x", self.dir, length, hash))
 	url := fmt.Sprintf("https://d.pcs.baidu.com/rest/2.0/pcs/file?method=download&access_token=%s&path=%s", self.token.AccessToken, path)
 	resp, err := self.client.Get(url)

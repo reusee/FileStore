@@ -1,6 +1,7 @@
-package hashbin
+package baidu
 
 import (
+	"../hashbin"
 	"testing"
 )
 
@@ -14,6 +15,6 @@ func TestBaiduBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := NewBin(baidu)
-	RunTest(bin, t)
+	bin := hashbin.NewBin(baidu)
+	hashbin.RunTest(bin, t)
 }

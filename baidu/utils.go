@@ -1,4 +1,4 @@
-package hashbin
+package baidu
 
 import (
 	"fmt"
