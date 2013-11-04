@@ -15,7 +15,7 @@ import (
 	"sort"
 )
 
-func runUpload() {
+func (self *App) runUpload() {
 	var path string
 	for i := 2; i < len(os.Args); i++ {
 		arg := os.Args[i]
@@ -41,7 +41,7 @@ func runUpload() {
 		log.Fatalf("cannot create snapshot set: %v", err)
 	}
 	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(DATADIR, escapedPath+".snapshots")
+	snapshotFilePath := filepath.Join(self.dataDir, escapedPath+".snapshots")
 	err = snapshotSet.Load(snapshotFilePath)
 	if err != nil {
 		log.Fatalf("cannot read snapshots from file: %v", err)
@@ -51,7 +51,7 @@ func runUpload() {
 	backends := make([]*hashbin.Bin, 0)
 
 	// baidu
-	b, err := getBaiduBackend()
+	b, err := self.getBaiduBackend()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -115,18 +115,18 @@ func runUpload() {
 
 }
 
-func getBaiduBackend() (*hashbin.Bin, error) {
+func (self *App) getBaiduBackend() (*hashbin.Bin, error) {
 	var dir string
 	var token oauth.Token
-	err := REGISTER.Get("baidu_dir", &dir)
+	err := self.register.Get("baidu_dir", &dir)
 	if err != nil {
 		return nil, err
 	}
-	err = REGISTER.Get("baidu_token", &token)
+	err = self.register.Get("baidu_token", &token)
 	if err != nil {
 		return nil, err
 	}
-	keyCacheFilePath := filepath.Join(DATADIR, "baidu.keys")
+	keyCacheFilePath := filepath.Join(self.dataDir, "baidu.keys")
 	b, err := baidu.New(dir, &token, keyCacheFilePath)
 	if err != nil {
 		return nil, err

@@ -2,5 +2,5 @@ package main
 
 import ()
 
-func runUpdate() {
+func (self *App) runUpdate() {
 }

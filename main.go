@@ -11,31 +11,9 @@ import (
 	"path/filepath"
 )
 
-var DATADIR string
-var REGISTER *register.Register
-
-func init() {
-	user, err := user.Current()
-	if err != nil {
-		log.Fatalf("cannot get current user: %v", err)
-	}
-	DATADIR = filepath.Join(user.HomeDir, ".FileStore")
-	_, err = os.Stat(DATADIR)
-	if os.IsNotExist(err) {
-		err = os.Mkdir(DATADIR, 0755)
-		if err != nil {
-			log.Fatalf("cannot create data dir: %v", err)
-		}
-	}
-
-	REGISTER, err = register.NewRegister(filepath.Join(DATADIR, "register"))
-	if err != nil {
-		log.Fatalf("open register: %v", err)
-	}
-
-	go func() {
-		http.ListenAndServe("0.0.0.0:55555", nil)
-	}()
+type App struct {
+	dataDir  string
+	register *register.Register
 }
 
 func main() {
@@ -43,17 +21,42 @@ func main() {
 		fmt.Printf("usage: %s [command]\n", os.Args[0])
 		os.Exit(0)
 	}
+
+	go http.ListenAndServe("0.0.0.0:55555", nil)
+
+	app := new(App)
+
+	user, err := user.Current()
+	if err != nil {
+		log.Fatalf("cannot get current user: %v", err)
+	}
+	dataDir := filepath.Join(user.HomeDir, ".FileStore")
+	_, err = os.Stat(dataDir)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(dataDir, 0755)
+		if err != nil {
+			log.Fatalf("cannot create data dir: %v", err)
+		}
+	}
+	app.dataDir = dataDir
+
+	reg, err := register.NewRegister(filepath.Join(dataDir, "register"))
+	if err != nil {
+		log.Fatalf("open register: %v", err)
+	}
+	app.register = reg
+
 	switch os.Args[1] {
 	case "snapshot":
-		runSnapshot()
+		app.runSnapshot()
 	case "upload":
-		runUpload()
+		app.runUpload()
 	case "setup":
-		runSetup()
+		app.runSetup()
 	case "update":
-		runUpdate()
+		app.runUpdate()
 	case "list":
-		runList()
+		app.runList()
 	default:
 		log.Fatalf("unknown command %s", os.Args[1])
 	}

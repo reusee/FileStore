@@ -5,9 +5,9 @@ import (
 	"log"
 )
 
-func runSetup() {
+func (self *App) runSetup() {
 	// baidu
-	err := baidu.Setup(REGISTER)
+	err := baidu.Setup(self.register)
 	if err != nil {
 		log.Fatalf("baidu setup: %v", err)
 	}

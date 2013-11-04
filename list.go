@@ -9,19 +9,11 @@ import (
 	"path/filepath"
 )
 
-func (self *App) runSnapshot() {
-	var readCache bool
+func (self *App) runList() {
 	var path string
-	strategy := snapshot.FULL_HASH
 	for i := 2; i < len(os.Args); i++ {
 		arg := os.Args[i]
-		if arg == "-c" || arg == "--continue" {
-			readCache = true
-		} else if arg == "-fc" || arg == "--fast-check" {
-			strategy = snapshot.FAST_CHECK
-		} else if arg == "-fh" || arg == "--fast-hash" {
-			strategy = snapshot.FAST_HASH
-		} else if arg[0] == '-' {
+		if arg[0] == '-' {
 			fmt.Printf("unknown option %s\n", arg)
 			os.Exit(0)
 		} else {
@@ -29,7 +21,7 @@ func (self *App) runSnapshot() {
 		}
 	}
 	if path == "" {
-		fmt.Printf("usage: %s snapshot [dir]\n", os.Args[0])
+		fmt.Printf("usage: %s list [dir]\n", os.Args[0])
 		os.Exit(0)
 	}
 
@@ -49,17 +41,4 @@ func (self *App) runSnapshot() {
 		log.Fatalf("cannot read snapshots from file: %v", err)
 	}
 	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
-
-	cacheFilePath := filepath.Join(self.dataDir, escapedPath+".cache")
-	err = snapshotSet.Snapshot(cacheFilePath, readCache, strategy)
-	if err != nil {
-		log.Fatalf("snapshot error: %v", err)
-	}
-
-	fmt.Printf("saving snapshots\n")
-	err = snapshotSet.Save(snapshotFilePath)
-	if err != nil {
-		log.Fatalf("cannot save snapshot to file: %v", err)
-	}
-	fmt.Printf("snapshots saved\n")
 }
