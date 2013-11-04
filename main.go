@@ -17,7 +17,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("cannot get current user: %v", err)
 	}
-	dataDir := filepath.Join(user.HomeDir, ".FileStore")
+	dataDir = filepath.Join(user.HomeDir, ".FileStore")
 	_, err = os.Stat(dataDir)
 	if os.IsNotExist(err) {
 		err = os.Mkdir(dataDir, 0755)

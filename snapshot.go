@@ -29,7 +29,7 @@ func runSnapshot() {
 		}
 	}
 	if path == "" {
-		fmt.Printf("usage: %s [dir]\n", os.Args[0])
+		fmt.Printf("usage: %s snapshot [dir]\n", os.Args[0])
 		os.Exit(0)
 	}
 
