@@ -106,10 +106,7 @@ func runUpload() {
 					if int64(n) != chunk.Length || err != nil {
 						log.Fatal(err)
 					}
-					err = backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
-					if err != nil {
-						log.Fatal(err)
-					}
+					backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
 				}
 			}
 		}(filePath, file)
