@@ -23,10 +23,21 @@ type Baidu struct {
 	token  *oauth.Token
 }
 
-func NewBaidu(appId, appSecret, appDir, tokenStr string) (*Baidu, error) {
+func New(dir string, token *oauth.Token) (*Baidu, error) {
 	baidu := &Baidu{
-		dir: appDir,
+		dir:    dir,
+		token:  token,
+		client: new(http.Client),
 	}
+	quota, used, err := baidu.GetQuota()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Baidu: quota %s, used %s\n", formatSize(quota), formatSize(used))
+	return baidu, nil
+}
+
+func NewBaiduWithStringToken(dir, tokenStr string) (*Baidu, error) {
 	var token oauth.Token
 	tokenBytes, err := hex.DecodeString(tokenStr)
 	if err != nil {
@@ -36,17 +47,10 @@ func NewBaidu(appId, appSecret, appDir, tokenStr string) (*Baidu, error) {
 	if err != nil {
 		return nil, err
 	}
-	baidu.token = &token
-	baidu.client = new(http.Client)
-	quota, used, err := baidu.getQuota()
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Baidu: quota %s, used %s\n", formatSize(quota), formatSize(used))
-	return baidu, nil
+	return New(dir, &token)
 }
 
-func (self *Baidu) getQuota() (quota int, used int, err error) {
+func (self *Baidu) GetQuota() (quota int, used int, err error) {
 	q, err := self.get("quota", "info", nil)
 	if err != nil {
 		return 0, 0, err

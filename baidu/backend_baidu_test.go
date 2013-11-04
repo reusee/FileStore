@@ -6,9 +6,7 @@ import (
 )
 
 func TestBaiduBackend(t *testing.T) {
-	baidu, err := NewBaidu(
-		BAIDU_KEY,
-		BAIDU_SECRET,
+	baidu, err := NewBaiduWithStringToken(
 		BAIDU_DIR,
 		BAIDU_TOKEN,
 	)
