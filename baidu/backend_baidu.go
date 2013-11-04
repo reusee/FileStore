@@ -131,18 +131,18 @@ func (self *Baidu) upload(path string, data []byte, length int) error {
 	return nil
 }
 
-func (self *Baidu) NewWriter(length int, hash []byte) (io.Writer, hashbin.Callback, error) {
+func (self *Baidu) NewWriter(length int, hash string) (io.Writer, hashbin.Callback, error) {
 	buf := new(bytes.Buffer)
 	return buf, func(err error) error {
 		if err != nil {
 			return err
 		}
-		return self.upload(fmt.Sprintf("%d-%x", length, hash), buf.Bytes(), length)
+		return self.upload(fmt.Sprintf("%s/%d-%s", hash[:2], length, hash), buf.Bytes(), length)
 	}, nil
 }
 
-func (self *Baidu) NewReader(length int, hash []byte) (io.Reader, hashbin.Callback, error) {
-	path := neturl.QueryEscape(fmt.Sprintf("/apps/%s/%d-%x", self.dir, length, hash))
+func (self *Baidu) NewReader(length int, hash string) (io.Reader, hashbin.Callback, error) {
+	path := neturl.QueryEscape(fmt.Sprintf("/apps/%s/%s/%d-%s", self.dir, hash[:2], length, hash))
 	url := fmt.Sprintf("https://d.pcs.baidu.com/rest/2.0/pcs/file?method=download&access_token=%s&path=%s", self.token.AccessToken, path)
 	resp, err := self.client.Get(url)
 	if err != nil {
@@ -173,6 +173,38 @@ func (self *Baidu) NewReader(length int, hash []byte) (io.Reader, hashbin.Callba
 	}, nil
 }
 
-func (self *Baidu) Exists(length int, hash []byte) (bool, error) {
+func (self *Baidu) Exists(length int, hash string) (bool, error) {
 	return false, nil
+}
+
+func (self *Baidu) Mkdir(path string) error {
+	url := fmt.Sprintf("https://pcs.baidu.com/rest/2.0/pcs/file?method=mkdir&access_token=%s", self.token.AccessToken)
+	url += "&path=" + neturl.QueryEscape(fmt.Sprintf("/apps/%s/%s", self.dir, path))
+
+	buf := new(bytes.Buffer)
+	form := multipart.NewWriter(buf)
+	form.Close()
+	resp, err := self.client.Post(url, form.FormDataContentType(), buf)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	buf.Reset()
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return errors.New("response body read error")
+	}
+	respBody := make(map[string]interface{})
+	err = json.NewDecoder(buf).Decode(&respBody)
+	if err != nil {
+		return errors.New("return json decode error")
+	}
+	q := jsonq.NewQuery(respBody)
+	if resp.StatusCode != http.StatusOK {
+		errCode, _ := q.Int("error_code")
+		errMsg, _ := q.String("error_msg")
+		return errors.New(fmt.Sprintf("server error %d %s", errCode, errMsg))
+	}
+	return nil
 }

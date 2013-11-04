@@ -44,6 +44,27 @@ func Setup(register *register.Register) error {
 		log.Fatal(err)
 	}
 	err = register.Set("baidu_token", token)
+	if err != nil {
+		return err
+	}
 	err = register.Set("baidu_dir", dir)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// create dirs
+	c, err := New(dir, token)
+	if err != nil {
+		return err
+	}
+	chars := "0123456789abcdef"
+	for _, a := range chars {
+		for _, b := range chars {
+			dir := fmt.Sprintf("%c%c", a, b)
+			c.Mkdir(dir)
+			fmt.Printf("created %s\n", dir)
+		}
+	}
+
+	return nil
 }

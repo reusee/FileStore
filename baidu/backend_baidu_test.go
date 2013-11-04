@@ -13,6 +13,6 @@ func TestBaiduBackend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := hashbin.NewBin(baidu)
+	bin := hashbin.New(baidu)
 	hashbin.RunTest(bin, t)
 }
