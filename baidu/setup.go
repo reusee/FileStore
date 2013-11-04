@@ -53,7 +53,7 @@ func Setup(register *register.Register) error {
 	}
 
 	// create dirs
-	c, err := New(dir, token)
+	c, err := New(dir, token, "")
 	if err != nil {
 		return err
 	}

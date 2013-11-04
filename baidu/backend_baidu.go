@@ -12,32 +12,84 @@ import (
 	"fmt"
 	"github.com/jmoiron/jsonq"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	neturl "net/url"
+	"os"
+	"time"
 )
 
 type Baidu struct {
-	dir    string
-	client *http.Client
-	token  *oauth.Token
+	dir              string
+	client           *http.Client
+	token            *oauth.Token
+	keys             map[string]bool
+	keyCacheFilePath string
+	newKey           chan string
 }
 
-func New(dir string, token *oauth.Token) (*Baidu, error) {
+func New(dir string, token *oauth.Token, keyCacheFilePath string) (*Baidu, error) {
 	baidu := &Baidu{
-		dir:    dir,
-		token:  token,
-		client: new(http.Client),
+		dir:              dir,
+		token:            token,
+		client:           new(http.Client),
+		keys:             make(map[string]bool),
+		keyCacheFilePath: keyCacheFilePath,
+		newKey:           make(chan string),
 	}
 	quota, used, err := baidu.GetQuota()
 	if err != nil {
 		return nil, err
 	}
 	fmt.Printf("Baidu: quota %s, used %s\n", formatSize(quota), formatSize(used))
+
+	if keyCacheFilePath != "" {
+		f, err := os.Open(keyCacheFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, errors.New(fmt.Sprintf("cannot open key cache file: %v", err))
+		}
+		if err == nil {
+			err = gob.NewDecoder(f).Decode(&baidu.keys)
+			if err != nil {
+				return nil, errors.New(fmt.Sprintf("cannot decode key cache file: %v", err))
+			}
+		}
+	}
+
+	go baidu.start()
+
 	return baidu, nil
 }
 
-func NewBaiduWithStringToken(dir, tokenStr string) (*Baidu, error) {
+func (self *Baidu) start() {
+	ticker := time.NewTicker(time.Second * 10)
+	for {
+		select {
+		case key := <-self.newKey: // new key
+			self.keys[key] = true
+		case <-ticker.C: // save to file
+			if self.keyCacheFilePath == "" {
+				continue
+			}
+			f, err := os.Create(self.keyCacheFilePath + ".new")
+			if err != nil {
+				log.Fatalf("cannot open key cache file: %v", err)
+			}
+			err = gob.NewEncoder(f).Encode(self.keys)
+			if err != nil {
+				log.Fatalf("cannot write key cache file: %v", err)
+			}
+			err = os.Rename(self.keyCacheFilePath+".new", self.keyCacheFilePath)
+			if err != nil {
+				log.Fatalf("cannot write key cache file: %v", err)
+			}
+			fmt.Printf("%d keys saved to cache file\n", len(self.keys))
+		}
+	}
+}
+
+func NewBaiduWithStringToken(dir, tokenStr string, keyCacheFilePath string) (*Baidu, error) {
 	var token oauth.Token
 	tokenBytes, err := hex.DecodeString(tokenStr)
 	if err != nil {
@@ -47,7 +99,7 @@ func NewBaiduWithStringToken(dir, tokenStr string) (*Baidu, error) {
 	if err != nil {
 		return nil, err
 	}
-	return New(dir, &token)
+	return New(dir, &token, keyCacheFilePath)
 }
 
 func (self *Baidu) GetQuota() (quota int, used int, err error) {
@@ -137,7 +189,12 @@ func (self *Baidu) NewWriter(length int, hash string) (io.Writer, hashbin.Callba
 		if err != nil {
 			return err
 		}
-		return self.upload(fmt.Sprintf("%s/%d-%s", hash[:2], length, hash), buf.Bytes(), length)
+		err = self.upload(fmt.Sprintf("%s/%d-%s", hash[:2], length, hash), buf.Bytes(), length)
+		if err != nil {
+			return err
+		}
+		self.newKey <- fmt.Sprintf("%d-%s", length, hash)
+		return nil
 	}, nil
 }
 
@@ -174,6 +231,11 @@ func (self *Baidu) NewReader(length int, hash string) (io.Reader, hashbin.Callba
 }
 
 func (self *Baidu) Exists(length int, hash string) (bool, error) {
+	key := fmt.Sprintf("%d-%s", length, hash)
+	if _, ok := self.keys[key]; ok {
+		return true, nil
+	}
+	//TODO query server
 	return false, nil
 }
 
