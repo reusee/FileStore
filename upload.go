@@ -30,11 +30,11 @@ func (self *App) runUpload() {
 	}
 	lastSnapshot := self.snapshotSet.Snapshots[len(self.snapshotSet.Snapshots)-1]
 
-	filePaths := make([]string, 0, len(lastSnapshot.Files))
-	for filePath := range lastSnapshot.Files {
-		filePaths = append(filePaths, filePath)
+	paths := make([]string, 0, len(lastSnapshot.Files))
+	for path := range lastSnapshot.Files {
+		paths = append(paths, path)
 	}
-	sort.Strings(filePaths)
+	sort.Strings(paths)
 
 	semSize := 4
 	sem := make(chan []byte, semSize)
@@ -42,14 +42,14 @@ func (self *App) runUpload() {
 		sem <- make([]byte, snapshot.MAX_CHUNK_SIZE)
 	}
 
-	for _, filePath := range filePaths {
-		file := lastSnapshot.Files[filePath]
+	for _, path := range paths {
+		file := lastSnapshot.Files[path]
 		buf := <-sem
-		go func(filePath string) {
+		go func(path string) {
 			defer func() {
 				sem <- buf
 			}()
-			f, err := os.Open(filePath)
+			f, err := os.Open(path)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -61,10 +61,10 @@ func (self *App) runUpload() {
 						log.Fatal(err)
 					}
 					if exists {
-						fmt.Printf("skip %s %d %s\n", filePath, chunk.Offset, chunk.Hash)
+						fmt.Printf("skip %s %d %s\n", path, chunk.Offset, chunk.Hash)
 						return
 					}
-					fmt.Printf("uploading %s %d %s\n", filePath, chunk.Offset, chunk.Hash)
+					fmt.Printf("uploading %s %d %s\n", path, chunk.Offset, chunk.Hash)
 					o, err := f.Seek(chunk.Offset, 0)
 					if err != nil || o != chunk.Offset {
 						log.Fatal(err)
@@ -77,7 +77,7 @@ func (self *App) runUpload() {
 					backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
 				}
 			}
-		}(filePath)
+		}(path)
 	}
 
 }
