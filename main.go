@@ -4,6 +4,8 @@ import (
 	"./register"
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,6 +32,10 @@ func init() {
 	if err != nil {
 		log.Fatalf("open register: %v", err)
 	}
+
+	go func() {
+		http.ListenAndServe("0.0.0.0:55555", nil)
+	}()
 }
 
 func main() {
@@ -42,11 +48,12 @@ func main() {
 		runSnapshot()
 	case "upload":
 		runUpload()
-	case "download":
 	case "setup":
 		runSetup()
 	case "update":
 		runUpdate()
+	case "list":
+		runList()
 	default:
 		log.Fatalf("unknown command %s", os.Args[1])
 	}
