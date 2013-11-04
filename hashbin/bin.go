@@ -12,7 +12,7 @@ type Bin struct {
 	backend Backend
 }
 
-func NewBin(backend Backend) *Bin {
+func New(backend Backend) *Bin {
 	return &Bin{
 		backend: backend,
 	}

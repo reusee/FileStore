@@ -6,6 +6,6 @@ import (
 
 func TestMemBackend(t *testing.T) {
 	mem := NewMembin()
-	bin := NewBin(mem)
+	bin := New(mem)
 	RunTest(bin, t)
 }
