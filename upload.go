@@ -9,45 +9,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 )
 
 func (self *App) runUpload() {
-	var path string
-	for i := 2; i < len(os.Args); i++ {
-		arg := os.Args[i]
-		if arg[0] == '-' {
-			fmt.Printf("unknown option %s\n", arg)
-			os.Exit(0)
-		} else {
-			path = arg
-		}
-	}
-	if path == "" {
-		fmt.Printf("usage: %s upload [dir]\n", os.Args[0])
-		os.Exit(0)
-	}
-
-	path, err := filepath.Abs(path)
-	if err != nil {
-		log.Fatalf("invalid path: %v", err)
-	}
-
-	snapshotSet, err := snapshot.New(path)
-	if err != nil {
-		log.Fatalf("cannot create snapshot set: %v", err)
-	}
-	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(self.dataDir, escapedPath+".snapshots")
-	err = snapshotSet.Load(snapshotFilePath)
-	if err != nil {
-		log.Fatalf("cannot read snapshots from file: %v", err)
-	}
-	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
-
 	backends := make([]*hashbin.Bin, 0)
 
 	// baidu
@@ -57,11 +24,11 @@ func (self *App) runUpload() {
 	}
 	backends = append(backends, b)
 
-	if len(snapshotSet.Snapshots) == 0 {
+	if len(self.snapshotSet.Snapshots) == 0 {
 		fmt.Printf("no snapshot\n")
 		os.Exit(0)
 	}
-	lastSnapshot := snapshotSet.Snapshots[len(snapshotSet.Snapshots)-1]
+	lastSnapshot := self.snapshotSet.Snapshots[len(self.snapshotSet.Snapshots)-1]
 
 	filePaths := make([]string, 0, len(lastSnapshot.Files))
 	for filePath := range lastSnapshot.Files {

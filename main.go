@@ -2,18 +2,25 @@ package main
 
 import (
 	"./register"
+	"./snapshot"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 )
 
 type App struct {
-	dataDir  string
-	register *register.Register
+	dataDir          string
+	register         *register.Register
+	flags            []string
+	path             string
+	escapedPath      string
+	snapshotSet      *snapshot.SnapshotSet
+	snapshotFilePath string
 }
 
 func main() {
@@ -45,6 +52,40 @@ func main() {
 		log.Fatalf("open register: %v", err)
 	}
 	app.register = reg
+
+	var path string
+	for i := 2; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if arg[0] == '-' {
+			app.flags = append(app.flags, arg)
+		} else {
+			path = arg
+		}
+	}
+	if path == "" {
+		fmt.Printf("path is empty\n")
+		os.Exit(0)
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		log.Fatalf("invalid path: %v", err)
+	}
+	app.path = path
+
+	snapshotSet, err := snapshot.New(path)
+	if err != nil {
+		log.Fatalf("cannot create snapshot set: %v", err)
+	}
+	escapedPath := url.QueryEscape(path)
+	app.escapedPath = escapedPath
+	snapshotFilePath := filepath.Join(app.dataDir, escapedPath+".snapshots")
+	app.snapshotFilePath = snapshotFilePath
+	err = snapshotSet.Load(snapshotFilePath)
+	if err != nil {
+		log.Fatalf("cannot read snapshots from file: %v", err)
+	}
+	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
+	app.snapshotSet = snapshotSet
 
 	switch os.Args[1] {
 	case "snapshot":

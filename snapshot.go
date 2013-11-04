@@ -4,60 +4,34 @@ import (
 	"./snapshot"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 )
 
 func (self *App) runSnapshot() {
 	var readCache bool
-	var path string
 	strategy := snapshot.FULL_HASH
-	for i := 2; i < len(os.Args); i++ {
-		arg := os.Args[i]
-		if arg == "-c" || arg == "--continue" {
+	for _, flag := range self.flags {
+		if flag == "-c" || flag == "--continue" {
 			readCache = true
-		} else if arg == "-fc" || arg == "--fast-check" {
+		} else if flag == "-fc" || flag == "--fast-check" {
 			strategy = snapshot.FAST_CHECK
-		} else if arg == "-fh" || arg == "--fast-hash" {
+		} else if flag == "-fh" || flag == "--fast-hash" {
 			strategy = snapshot.FAST_HASH
-		} else if arg[0] == '-' {
-			fmt.Printf("unknown option %s\n", arg)
+		} else if flag[0] == '-' {
+			fmt.Printf("unknown option %s\n", flag)
 			os.Exit(0)
-		} else {
-			path = arg
 		}
 	}
-	if path == "" {
-		fmt.Printf("usage: %s snapshot [dir]\n", os.Args[0])
-		os.Exit(0)
-	}
 
-	path, err := filepath.Abs(path)
-	if err != nil {
-		log.Fatalf("invalid path: %v", err)
-	}
-
-	snapshotSet, err := snapshot.New(path)
-	if err != nil {
-		log.Fatalf("cannot create snapshot set: %v", err)
-	}
-	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(self.dataDir, escapedPath+".snapshots")
-	err = snapshotSet.Load(snapshotFilePath)
-	if err != nil {
-		log.Fatalf("cannot read snapshots from file: %v", err)
-	}
-	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
-
-	cacheFilePath := filepath.Join(self.dataDir, escapedPath+".cache")
-	err = snapshotSet.Snapshot(cacheFilePath, readCache, strategy)
+	cacheFilePath := filepath.Join(self.dataDir, self.escapedPath+".cache")
+	err := self.snapshotSet.Snapshot(cacheFilePath, readCache, strategy)
 	if err != nil {
 		log.Fatalf("snapshot error: %v", err)
 	}
 
 	fmt.Printf("saving snapshots\n")
-	err = snapshotSet.Save(snapshotFilePath)
+	err = self.snapshotSet.Save(self.snapshotFilePath)
 	if err != nil {
 		log.Fatalf("cannot save snapshot to file: %v", err)
 	}
