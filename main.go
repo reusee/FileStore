@@ -1,44 +1,18 @@
 package main
 
 import (
-	"./snapshot"
+	"./register"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 )
 
-func main() {
-	var readCache bool
-	var path string
-	strategy := snapshot.FULL_HASH
-	for i := 1; i < len(os.Args); i++ {
-		arg := os.Args[i]
-		if arg == "-c" || arg == "--continue" {
-			readCache = true
-		} else if arg == "-fc" || arg == "--fast-check" {
-			strategy = snapshot.FAST_CHECK
-		} else if arg == "-fh" || arg == "--fast-hash" {
-			strategy = snapshot.FAST_HASH
-		} else if arg[0] == '-' {
-			fmt.Printf("unknown option %s\n", arg)
-			os.Exit(0)
-		} else {
-			path = arg
-		}
-	}
-	if path == "" {
-		fmt.Printf("usage: %s [dir]\n", os.Args[0])
-		os.Exit(0)
-	}
+var dataDir string
+var REGISTER *register.Register
 
-	path, err := filepath.Abs(path)
-	if err != nil {
-		log.Fatalf("invalid path: %v", err)
-	}
-
+func init() {
 	user, err := user.Current()
 	if err != nil {
 		log.Fatalf("cannot get current user: %v", err)
@@ -52,28 +26,26 @@ func main() {
 		}
 	}
 
-	snapshotSet, err := snapshot.New(path)
+	REGISTER, err = register.NewRegister(filepath.Join(dataDir, "register"))
 	if err != nil {
-		log.Fatalf("cannot create snapshot set: %v", err)
+		log.Fatalf("open register: %v", err)
 	}
-	escapedPath := url.QueryEscape(path)
-	snapshotFilePath := filepath.Join(dataDir, escapedPath+".snapshots")
-	err = snapshotSet.Load(snapshotFilePath)
-	if err != nil {
-		log.Fatalf("cannot read snapshots from file: %v", err)
-	}
-	fmt.Printf("loaded %d snapshots from file\n", len(snapshotSet.Snapshots))
+}
 
-	cacheFilePath := filepath.Join(dataDir, escapedPath+".cache")
-	err = snapshotSet.Snapshot(cacheFilePath, readCache, strategy)
-	if err != nil {
-		log.Fatalf("snapshot error: %v", err)
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("usage: %s [command]\n", os.Args[0])
+		os.Exit(0)
 	}
-
-	fmt.Printf("saving snapshots\n")
-	err = snapshotSet.Save(snapshotFilePath)
-	if err != nil {
-		log.Fatalf("cannot save snapshot to file: %v", err)
+	switch os.Args[1] {
+	case "snapshot":
+		runSnapshot()
+	case "upload":
+		runUpload()
+	case "download":
+	case "setup":
+		runSetup()
+	default:
+		log.Fatalf("unknown command %s", os.Args[1])
 	}
-	fmt.Printf("snapshots saved\n")
 }
