@@ -12,7 +12,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -23,6 +25,10 @@ type Job struct {
 }
 
 func (self *App) runUpload() {
+	matchPatterns := make([]*regexp.Regexp, 0)
+	for _, arg := range self.args {
+		matchPatterns = append(matchPatterns, regexp.MustCompilePOSIX("^"+arg))
+	}
 
 	// backends //TODO configurable
 	backends := make([]*hashbin.Bin, 0)
@@ -48,6 +54,20 @@ func (self *App) runUpload() {
 	jobs := make([]Job, 0)
 	var totalSize int64
 	for _, path := range paths {
+		if len(matchPatterns) > 0 {
+			ignore := true
+			relativePath := strings.TrimPrefix(path, self.path)
+			relativePath = strings.TrimPrefix(relativePath, "/")
+			for _, p := range matchPatterns {
+				if p.MatchString(relativePath) {
+					ignore = false
+					break
+				}
+			}
+			if ignore {
+				continue
+			}
+		}
 		file := lastSnapshot.Files[path]
 		for _, chunk := range file.Chunks {
 			for _, backend := range backends {

@@ -17,6 +17,7 @@ type App struct {
 	dataDir          string
 	register         *register.Register
 	flags            []string
+	args             []string
 	path             string
 	escapedPath      string
 	snapshotSet      *snapshot.SnapshotSet
@@ -59,7 +60,11 @@ func main() {
 		if arg[0] == '-' {
 			app.flags = append(app.flags, arg)
 		} else {
-			path = arg
+			if path == "" {
+				path = arg
+			} else {
+				app.args = append(app.args, arg)
+			}
 		}
 	}
 	if path == "" {
