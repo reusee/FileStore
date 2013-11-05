@@ -4,6 +4,7 @@ import (
 	"./baidu"
 	"./hashbin"
 	"./snapshot"
+	"./utils"
 	"bytes"
 	"code.google.com/p/goauth2/oauth"
 	"fmt"
@@ -31,8 +32,10 @@ func (self *App) runUpload() {
 	lastSnapshot := self.snapshotSet.Snapshots[len(self.snapshotSet.Snapshots)-1]
 
 	paths := make([]string, 0, len(lastSnapshot.Files))
-	for path := range lastSnapshot.Files {
+	var remaining, uploaded int64
+	for path, file := range lastSnapshot.Files {
 		paths = append(paths, path)
+		remaining += file.Size
 	}
 	sort.Strings(paths)
 
@@ -48,6 +51,10 @@ func (self *App) runUpload() {
 		go func(path string) {
 			defer func() {
 				sem <- buf
+				remaining -= file.Size
+				fmt.Printf("%s uploaded, %s remaining\n",
+					utils.FormatSize(int(uploaded)),
+					utils.FormatSize(int(remaining)))
 			}()
 			f, err := os.Open(path)
 			if err != nil {
@@ -60,26 +67,27 @@ func (self *App) runUpload() {
 					if err != nil {
 						log.Fatal(err)
 					}
-					if exists {
+					if !exists {
+						fmt.Printf("uploading %s %d %s\n", path, chunk.Offset, chunk.Hash)
+						o, err := f.Seek(chunk.Offset, 0)
+						if err != nil || o != chunk.Offset {
+							log.Fatal(err)
+						}
+						buf = buf[:chunk.Length]
+						n, err := io.ReadFull(f, buf)
+						if int64(n) != chunk.Length || err != nil {
+							log.Fatal(err)
+						}
+						backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
+					} else {
 						fmt.Printf("skip %s %d %s\n", path, chunk.Offset, chunk.Hash)
-						return
 					}
-					fmt.Printf("uploading %s %d %s\n", path, chunk.Offset, chunk.Hash)
-					o, err := f.Seek(chunk.Offset, 0)
-					if err != nil || o != chunk.Offset {
-						log.Fatal(err)
-					}
-					buf = buf[:chunk.Length]
-					n, err := io.ReadFull(f, buf)
-					if int64(n) != chunk.Length || err != nil {
-						log.Fatal(err)
-					}
-					backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
 				}
+				remaining -= chunk.Length
+				uploaded += chunk.Length
 			}
 		}(path)
 	}
-
 }
 
 func (self *App) getBaiduBackend() (*hashbin.Bin, error) {
