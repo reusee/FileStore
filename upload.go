@@ -134,10 +134,11 @@ func (self *App) runUpload() {
 			}
 			t0 := time.Now()
 			job.backend.Save(int(job.chunk.Length), job.chunk.Hash, bytes.NewReader(buf))
-			fmt.Printf("=> job %d / %d: %s %d\n\t%d-%s... %v\n",
+			fmt.Printf("=> job %d / %d: %s %d\n\t%d-%s... %v %s\n",
 				i+1, len(jobs),
 				job.path, job.chunk.Offset,
-				job.chunk.Length, job.chunk.Hash[:16], time.Now().Sub(t0))
+				job.chunk.Length, job.chunk.Hash[:16], time.Now().Sub(t0),
+				utils.FormatSize(int(job.chunk.Length)))
 		}(i, job)
 	}
 	wg.Wait()
