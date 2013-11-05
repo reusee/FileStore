@@ -126,11 +126,12 @@ func (self *App) runUpload() {
 			if int64(n) != job.chunk.Length || err != nil {
 				log.Fatal(err)
 			}
-			fmt.Printf("=> job %d / %d: %s %d %d\n\t%d-%s\n",
-				i+1, len(jobs),
-				job.path, job.chunk.Offset, job.chunk.Length,
-				job.chunk.Length, job.chunk.Hash)
+			t0 := time.Now()
 			job.backend.Save(int(job.chunk.Length), job.chunk.Hash, bytes.NewReader(buf))
+			fmt.Printf("=> job %d / %d: %s %d\n\t%d-%s... %v\n",
+				i+1, len(jobs),
+				job.path, job.chunk.Offset,
+				job.chunk.Length, job.chunk.Hash[:16], time.Now().Sub(t0))
 		}(i, job)
 	}
 

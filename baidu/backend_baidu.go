@@ -18,6 +18,7 @@ import (
 	"net/http"
 	neturl "net/url"
 	"os"
+	"time"
 )
 
 type Baidu struct {
@@ -73,6 +74,7 @@ func (self *Baidu) start() {
 		if err != nil {
 			log.Fatalf("cannot open key cache file: %v", err)
 		}
+		t0 := time.Now()
 		err = gob.NewEncoder(f).Encode(self.keys)
 		if err != nil {
 			log.Fatalf("cannot write key cache file: %v", err)
@@ -81,7 +83,8 @@ func (self *Baidu) start() {
 		if err != nil {
 			log.Fatalf("cannot write key cache file: %v", err)
 		}
-		fmt.Printf("=> %d keys saved to cache file\n", len(self.keys))
+		fmt.Printf("=> %d keys saved to cache file / %v\n", len(self.keys),
+			time.Now().Sub(t0))
 	}
 }
 
