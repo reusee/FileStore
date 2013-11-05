@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -53,6 +54,7 @@ func (self *App) runUpload() {
 	sort.Strings(paths)
 	jobs := make([]Job, 0)
 	var totalSize int64
+	fmt.Printf("collecting jobs\n")
 	for _, path := range paths {
 		if len(matchPatterns) > 0 {
 			ignore := true
@@ -87,6 +89,7 @@ func (self *App) runUpload() {
 			}
 		}
 	}
+	fmt.Printf("%d jobs\n", len(jobs))
 
 	// upload
 	semSize := 4
@@ -105,12 +108,15 @@ func (self *App) runUpload() {
 		}
 	}()
 
+	wg := new(sync.WaitGroup)
+	wg.Add(len(jobs))
 	for i, job := range jobs {
 		buf := <-sem
 		go func(i int, job Job) {
 			defer func() {
 				sem <- buf
 				uploaded += job.chunk.Length
+				wg.Done()
 			}()
 			f, err := os.OpenFile(job.path, os.O_RDONLY, 0644)
 			if err != nil {
@@ -134,7 +140,11 @@ func (self *App) runUpload() {
 				job.chunk.Length, job.chunk.Hash[:16], time.Now().Sub(t0))
 		}(i, job)
 	}
+	wg.Wait()
 
+	if len(jobs) > 0 {
+		time.Sleep(time.Second * 2) // for backend save
+	}
 }
 
 func (self *App) getBaiduBackend() (*hashbin.Bin, error) {
