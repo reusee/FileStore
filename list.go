@@ -39,7 +39,7 @@ func (self *App) runList() {
 				complete = false
 			}
 		}
-		if complete {
+		if !complete {
 			fmt.Printf("%s\n", path)
 			totalSize += file.Size
 		}
