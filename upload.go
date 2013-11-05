@@ -13,81 +13,107 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
-func (self *App) runUpload() {
-	backends := make([]*hashbin.Bin, 0)
+type Job struct {
+	backend *hashbin.Bin
+	path    string
+	chunk   *snapshot.Chunk
+}
 
-	// baidu
-	b, err := self.getBaiduBackend()
+func (self *App) runUpload() {
+
+	// backends //TODO configurable
+	backends := make([]*hashbin.Bin, 0)
+	b, err := self.getBaiduBackend() // baidu
 	if err != nil {
 		log.Fatal(err)
 	}
 	backends = append(backends, b)
 
+	// snapshot to upload //TODO specifiable
 	if len(self.snapshotSet.Snapshots) == 0 {
 		fmt.Printf("no snapshot\n")
 		os.Exit(0)
 	}
 	lastSnapshot := self.snapshotSet.Snapshots[len(self.snapshotSet.Snapshots)-1]
 
+	// generate jobs
 	paths := make([]string, 0, len(lastSnapshot.Files))
-	var remaining, uploaded int64
-	for path, file := range lastSnapshot.Files {
+	for path, _ := range lastSnapshot.Files {
 		paths = append(paths, path)
-		remaining += file.Size
 	}
 	sort.Strings(paths)
+	jobs := make([]Job, 0)
+	var totalSize int64
+	for _, path := range paths {
+		file := lastSnapshot.Files[path]
+		for _, chunk := range file.Chunks {
+			for _, backend := range backends {
+				exists, err := backend.Exists(int(chunk.Length), chunk.Hash)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if exists {
+					continue
+				}
+				totalSize += chunk.Length
+				jobs = append(jobs, Job{
+					backend: backend,
+					chunk:   chunk,
+					path:    path,
+				})
+			}
+		}
+	}
 
+	// upload
 	semSize := 4
 	sem := make(chan []byte, semSize)
 	for i := 0; i < semSize; i++ {
 		sem <- make([]byte, snapshot.MAX_CHUNK_SIZE)
 	}
 
-	for _, path := range paths {
-		file := lastSnapshot.Files[path]
+	var uploaded int64
+	go func() {
+		for _ = range time.NewTicker(time.Second * 10).C {
+			fmt.Printf("=> %s / %s / %s\n",
+				utils.FormatSize(int(uploaded)),
+				utils.FormatSize(int(totalSize)),
+				utils.FormatSize(int(totalSize-uploaded)))
+		}
+	}()
+
+	for i, job := range jobs {
 		buf := <-sem
-		go func(path string) {
+		go func(i int, job Job) {
 			defer func() {
 				sem <- buf
-				remaining -= file.Size
-				fmt.Printf("%s uploaded, %s remaining\n",
-					utils.FormatSize(int(uploaded)),
-					utils.FormatSize(int(remaining)))
+				uploaded += job.chunk.Length
 			}()
-			f, err := os.Open(path)
+			f, err := os.OpenFile(job.path, os.O_RDONLY, 0644)
 			if err != nil {
 				log.Fatal(err)
 			}
 			defer f.Close()
-			for _, chunk := range file.Chunks {
-				for _, backend := range backends {
-					exists, err := backend.Exists(int(chunk.Length), chunk.Hash)
-					if err != nil {
-						log.Fatal(err)
-					}
-					if !exists {
-						fmt.Printf("uploading %s %d %s\n", path, chunk.Offset, chunk.Hash)
-						o, err := f.Seek(chunk.Offset, 0)
-						if err != nil || o != chunk.Offset {
-							log.Fatal(err)
-						}
-						buf = buf[:chunk.Length]
-						n, err := io.ReadFull(f, buf)
-						if int64(n) != chunk.Length || err != nil {
-							log.Fatal(err)
-						}
-						backend.Save(int(chunk.Length), chunk.Hash, bytes.NewReader(buf))
-					} else {
-						fmt.Printf("skip %s %d %s\n", path, chunk.Offset, chunk.Hash)
-					}
-				}
-				remaining -= chunk.Length
-				uploaded += chunk.Length
+			o, err := f.Seek(job.chunk.Offset, 0)
+			if err != nil || o != job.chunk.Offset {
+				log.Fatal(err)
 			}
-		}(path)
+			buf = buf[:job.chunk.Length]
+			n, err := io.ReadFull(f, buf)
+			if int64(n) != job.chunk.Length || err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("=> job %d / %d: %s %d %d\n\t%d-%s\n",
+				i+1, len(jobs),
+				job.path, job.chunk.Offset, job.chunk.Length,
+				job.chunk.Length, job.chunk.Hash)
+			job.backend.Save(int(job.chunk.Length), job.chunk.Hash, bytes.NewReader(buf))
+		}(i, job)
 	}
+
 }
 
 func (self *App) getBaiduBackend() (*hashbin.Bin, error) {
