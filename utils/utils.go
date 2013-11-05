@@ -5,6 +5,9 @@ import (
 )
 
 func FormatSize(n int) string {
+	if n == 0 {
+		return "0"
+	}
 	units := []string{"b", "k", "m", "g", "t"}
 	i := 0
 	ret := ""
