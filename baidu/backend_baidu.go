@@ -15,6 +15,7 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
+	"net"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -32,9 +33,16 @@ type Baidu struct {
 
 func New(dir string, token *oauth.Token, keyCacheFilePath string) (*Baidu, error) {
 	baidu := &Baidu{
-		dir:              dir,
-		token:            token,
-		client:           new(http.Client),
+		dir:   dir,
+		token: token,
+		client: &http.Client{
+			Transport: &http.Transport{
+				Dial: func(network, addr string) (net.Conn, error) {
+					return net.DialTimeout(network, addr, time.Second*30)
+				},
+				ResponseHeaderTimeout: time.Minute * 3,
+			},
+		},
 		keys:             make(map[string]bool),
 		keyCacheFilePath: keyCacheFilePath,
 		newKey:           make(chan string),
