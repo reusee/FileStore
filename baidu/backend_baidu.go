@@ -72,27 +72,36 @@ func New(dir string, token *oauth.Token, keyCacheFilePath string) (*Baidu, error
 }
 
 func (self *Baidu) start() {
+	ticker := time.NewTicker(time.Second * 10)
+	dirty := false
 	for {
-		key := <-self.newKey // new key
-		self.keys[key] = true
-		if self.keyCacheFilePath == "" {
-			continue
+		select {
+		case <-ticker.C:
+			if dirty {
+				if self.keyCacheFilePath == "" {
+					continue
+				}
+				f, err := os.Create(self.keyCacheFilePath + ".new")
+				if err != nil {
+					log.Fatalf("cannot open key cache file: %v", err)
+				}
+				t0 := time.Now()
+				err = gob.NewEncoder(f).Encode(self.keys)
+				if err != nil {
+					log.Fatalf("cannot write key cache file: %v", err)
+				}
+				err = os.Rename(self.keyCacheFilePath+".new", self.keyCacheFilePath)
+				if err != nil {
+					log.Fatalf("cannot write key cache file: %v", err)
+				}
+				fmt.Printf("=> %d keys saved to cache file / %v\n", len(self.keys),
+					time.Now().Sub(t0))
+				dirty = false
+			}
+		case key := <-self.newKey:
+			self.keys[key] = true
+			dirty = true
 		}
-		f, err := os.Create(self.keyCacheFilePath + ".new")
-		if err != nil {
-			log.Fatalf("cannot open key cache file: %v", err)
-		}
-		t0 := time.Now()
-		err = gob.NewEncoder(f).Encode(self.keys)
-		if err != nil {
-			log.Fatalf("cannot write key cache file: %v", err)
-		}
-		err = os.Rename(self.keyCacheFilePath+".new", self.keyCacheFilePath)
-		if err != nil {
-			log.Fatalf("cannot write key cache file: %v", err)
-		}
-		fmt.Printf("=> %d keys saved to cache file / %v\n", len(self.keys),
-			time.Now().Sub(t0))
 	}
 }
 
