@@ -133,7 +133,10 @@ func (self *App) runUpload() {
 				log.Fatal(err)
 			}
 			t0 := time.Now()
-			job.backend.Save(int(job.chunk.Length), job.chunk.Hash, bytes.NewReader(buf))
+			err = job.backend.Save(int(job.chunk.Length), job.chunk.Hash, bytes.NewReader(buf))
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
 			fmt.Printf("=> job %d / %d: %s %d\n\t%d-%s... %v %s\n",
 				i+1, len(jobs),
 				job.path, job.chunk.Offset,

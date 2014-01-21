@@ -39,10 +39,11 @@ func (self *App) runList() {
 				complete = false
 			}
 		}
-		if !complete {
-			fmt.Printf("%s\n", path)
-			totalSize += file.Size
-		}
+		//if complete {
+		_ = complete
+		fmt.Printf("%s\n", path)
+		totalSize += file.Size
+		//}
 	}
 
 	fmt.Printf("%s\n", utils.FormatSize(int(totalSize)))
